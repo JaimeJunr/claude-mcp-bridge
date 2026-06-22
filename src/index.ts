@@ -4,7 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { runClaude, type CliResult } from "./cli.js";
 
-const server = new McpServer({ name: "claude-mcp-bridge", version: "0.1.0" });
+const server = new McpServer({ name: "claude-mcp-bridge", version: "0.2.0" });
 
 // Params de roteamento compartilhados por todas as tools.
 const routing = {
@@ -54,39 +54,6 @@ server.registerTool(
     const focusLine = focus ? `\nFocus especially on: ${focus}.` : "";
     const body = content ? `\n\n--- CONTENT ---\n${content}` : "";
     const prompt = `Do a strict adversarial review of ${target}. Do NOT modify any files — this is read-only analysis. Hunt for correctness bugs, security flaws, edge cases, race conditions, and unstated assumptions. Be specific: cite file:line and give a concrete fix for each finding. Classify each as blocker / warning / suggestion.${focusLine}${body}`;
-    return format(await runClaude({ prompt, cwd, model, effort }));
-  },
-);
-
-server.registerTool(
-  "analyze_files",
-  {
-    description:
-      "Delegate file analysis to Claude instead of reading large files yourself. Use when files are large (>200 lines) or the task spans many files. The files never enter your context — only Claude's answer does. Read-only.",
-    inputSchema: {
-      files: z.array(z.string()).min(1).describe("File paths to analyze (relative to cwd or absolute)."),
-      question: z.string().describe("What you want to know about these files."),
-      ...routing,
-    },
-  },
-  async ({ files, question, cwd, model, effort }) => {
-    const prompt = `Read these files and answer the question. Do NOT modify anything — read-only analysis.\nFiles: ${files.join(", ")}\n\nQuestion: ${question}`;
-    return format(await runClaude({ prompt, cwd, model, effort }));
-  },
-);
-
-server.registerTool(
-  "deep_search",
-  {
-    description:
-      "Delegate codebase archaeology to Claude: git log/diff/blame spelunking, wide greps, 'when/why did X change', 'where is Y used'. Saves your context — Claude runs the searches and returns only the answer.",
-    inputSchema: {
-      query: z.string().describe("What to find, e.g. 'when was the auth middleware refactored and why'."),
-      ...routing,
-    },
-  },
-  async ({ query, cwd, model, effort }) => {
-    const prompt = `Investigate this codebase question using git history and code search (git log/diff/blame, grep). Do NOT modify files. Answer concisely with evidence (file:line, commit SHAs).\n\nQuestion: ${query}`;
     return format(await runClaude({ prompt, cwd, model, effort }));
   },
 );

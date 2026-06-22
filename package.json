@@ -1,6 +1,6 @@
 {
   "name": "claude-mcp-bridge",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server that lets any agent delegate to Claude Code (claude -p) for review, validation, analysis and autonomous tasks — with model and effort control.",
   "type": "module",
   "bin": {

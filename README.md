@@ -2,8 +2,10 @@
 
 MCP server that lets **any** agent or MCP host (Cursor, Codex, Antigravity, another Claude Code,
 your own app) delegate to **Claude Code** running headless (`claude -p`). Claude is the strongest
-model here, so the tool surface is biased toward **review, validation and analysis** — plus a raw
-`delegate` for full autonomous work.
+model here, so the tool surface is deliberately narrow — **reasoning, review and autonomous work**.
+Cheap mechanical work (mapping a repo, scanning files) is intentionally left out: it would burn
+expensive tokens, and Claude already explores natively (Explore subagent + LSP/Grep/Glob) inside
+`delegate`. For cheap exploration use a lighter bridge (e.g. `cursor-mcp-bridge`).
 
 Mirrors the ergonomics of `agy-bridge` / `codex`: every tool takes an optional **model** and
 **effort**, returns a `session_id`, and supports `follow_up` to continue without resending context.
@@ -14,8 +16,6 @@ Mirrors the ergonomics of `agy-bridge` / `codex`: every tool takes an optional *
 |------|---------|
 | `delegate` | Full autonomous task — Claude runs its own loop with tool access in `cwd`. |
 | `adversarial_review` | Strict review of a diff/plan/files: bugs, security, edge cases. Read-only. |
-| `analyze_files` | Answer questions about large/many files without loading them into your context. |
-| `deep_search` | Codebase archaeology: git log/diff/blame, wide greps. |
 | `web_lookup` | Web/docs lookup via Claude's web access. |
 | `follow_up` | Continue a prior session by `session_id`. |
 
