@@ -4,7 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { runClaude, type CliResult } from "./cli.js";
 
-const server = new McpServer({ name: "claude-mcp-bridge", version: "0.2.0" });
+const server = new McpServer({ name: "claude-mcp-bridge", version: "0.3.0" });
 
 // Params de roteamento compartilhados por todas as tools.
 const routing = {
@@ -54,19 +54,6 @@ server.registerTool(
     const focusLine = focus ? `\nFocus especially on: ${focus}.` : "";
     const body = content ? `\n\n--- CONTENT ---\n${content}` : "";
     const prompt = `Do a strict adversarial review of ${target}. Do NOT modify any files — this is read-only analysis. Hunt for correctness bugs, security flaws, edge cases, race conditions, and unstated assumptions. Be specific: cite file:line and give a concrete fix for each finding. Classify each as blocker / warning / suggestion.${focusLine}${body}`;
-    return format(await runClaude({ prompt, cwd, model, effort }));
-  },
-);
-
-server.registerTool(
-  "web_lookup",
-  {
-    description:
-      "Delegate a web/documentation lookup to Claude (with web access): library docs, API references, error messages, current versions. Use when you need information that may be newer than your training data.",
-    inputSchema: { query: z.string().describe("What to look up on the web."), ...routing },
-  },
-  async ({ query, cwd, model, effort }) => {
-    const prompt = `Look this up on the web and answer concisely with sources/links.\n\nQuery: ${query}`;
     return format(await runClaude({ prompt, cwd, model, effort }));
   },
 );

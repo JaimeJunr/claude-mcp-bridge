@@ -16,7 +16,6 @@ Mirrors the ergonomics of `agy-bridge` / `codex`: every tool takes an optional *
 |------|---------|
 | `delegate` | Full autonomous task — Claude runs its own loop with tool access in `cwd`. |
 | `adversarial_review` | Strict review of a diff/plan/files: bugs, security, edge cases. Read-only. |
-| `web_lookup` | Web/docs lookup via Claude's web access. |
 | `follow_up` | Continue a prior session by `session_id`. |
 
 Every tool accepts: `cwd` (project root), `model` (e.g. `opus`, `sonnet`, `haiku`), `effort`
