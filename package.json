@@ -1,7 +1,7 @@
 {
   "name": "claude-mcp-bridge",
-  "version": "0.3.0",
-  "description": "MCP server that lets any agent delegate to Claude Code (claude -p) for review, validation, analysis and autonomous tasks — with model and effort control.",
+  "version": "0.4.0",
+  "description": "MCP server that escalates to Opus via Claude Code (claude -p / --bg): ask, delegate, fire/check background tasks — blocks nested MCP delegation.",
   "type": "module",
   "bin": {
     "claude-mcp-bridge": "dist/index.js"
