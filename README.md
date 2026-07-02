@@ -14,7 +14,7 @@ claude-mcp-bridge (or any MCP) again.
 
 | Tool | Purpose | Model |
 |------|---------|-------|
-| `ask` | Read-only Q&A — architecture, explanation, planning (`claudecode({ prompt: "..." })`) | **Opus** (forced) |
+| `ask` | Read-only Q&A — architecture, explanation, planning | **Opus** (forced) |
 | `delegate` | Full autonomous task — edit, shell, tests (max turns, synchronous) | **Opus** (forced) |
 | `fire` | Fire-and-forget background task — returns `session_id` immediately | **Opus** (forced) |
 | `check` | Compact progress report for a `fire` session | read-only (no model) |

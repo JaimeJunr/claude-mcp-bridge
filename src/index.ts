@@ -38,7 +38,7 @@ function format(res: CliResult, hint?: string): { content: { type: "text"; text:
 server.registerTool(
   "ask",
   {
-    description: `${OPUS_WARNING} Ask Opus a question — read-only analysis (architecture, code explanation, planning). Like claudecode({ prompt: "Explain the architecture" }). Does NOT modify files. ${BLOCK_NESTED}`,
+    description: `${OPUS_WARNING} Ask Opus a question — read-only analysis (architecture, code explanation, planning). Does NOT modify files. ${BLOCK_NESTED}`,
     inputSchema: {
       prompt: z.string().describe("The question or analysis request for Opus."),
       ...routing,
