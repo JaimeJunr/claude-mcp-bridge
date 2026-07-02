@@ -2,75 +2,154 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { runClaude, type CliResult } from "./cli.js";
+import {
+  checkSession,
+  fireClaude,
+  MAX_TURNS,
+  OPUS_MODEL,
+  runClaude,
+  type CliResult,
+} from "./cli.js";
 
-const server = new McpServer({ name: "claude-mcp-bridge", version: "0.3.0" });
+const server = new McpServer({ name: "claude-mcp-bridge", version: "0.4.0" });
 
-// Params de roteamento compartilhados por todas as tools.
+const OPUS_WARNING =
+  `⚠️ OPUS ONLY — ${OPUS_MODEL} is expensive but very capable. Use for complex reasoning, architecture questions, and heavy autonomous work. Do NOT use for cheap exploration (grep, file listing, simple edits).`;
+
+const BLOCK_NESTED =
+  "Nested MCP delegation is blocked: this Opus session cannot call claude-mcp-bridge (or any MCP) again.";
+
 const routing = {
   cwd: z.string().optional().describe("Absolute path to the project root. Defaults to the server's cwd."),
-  model: z
-    .string()
-    .optional()
-    .describe("Claude model alias or full name (e.g. 'opus', 'sonnet', 'haiku'). Omit to use the default."),
   effort: z
     .string()
     .optional()
-    .describe("Reasoning effort: 'low' | 'medium' | 'high'. Higher = deeper, slower, costlier."),
+    .describe("Reasoning effort: 'low' | 'medium' | 'high'. Default: high. Higher = deeper, slower, costlier."),
 };
 
-/** Anexa o session_id para permitir follow_up encadeado. */
-function format(res: CliResult): { content: { type: "text"; text: string }[] } {
+function format(res: CliResult, hint?: string): { content: { type: "text"; text: string }[] } {
   const footer = res.sessionId
     ? `\n\n---\nsession_id: ${res.sessionId} (pass to follow_up to continue this session)`
     : "";
-  return { content: [{ type: "text", text: res.text + footer }] };
+  const extra = hint ? `\n\n${hint}` : "";
+  return { content: [{ type: "text", text: res.text + footer + extra }] };
 }
+
+server.registerTool(
+  "ask",
+  {
+    description: `${OPUS_WARNING} Ask Opus a question — read-only analysis (architecture, code explanation, planning). Like claudecode({ prompt: "Explain the architecture" }). Does NOT modify files. ${BLOCK_NESTED}`,
+    inputSchema: {
+      prompt: z.string().describe("The question or analysis request for Opus."),
+      ...routing,
+    },
+  },
+  async ({ prompt, cwd, effort }) =>
+    format(await runClaude({ prompt, mode: "ask", cwd, effort }), BLOCK_NESTED),
+);
 
 server.registerTool(
   "delegate",
   {
-    description:
-      "Delegate a complete task to Claude Code running headless (claude -p). Claude has full tool access (read, edit, shell, web) in the given cwd and runs its own agentic loop. Use for heavy autonomous work: refactors, multi-file implementation, running and fixing tests.",
-    inputSchema: { prompt: z.string().describe("The complete task prompt for Claude."), ...routing },
-  },
-  async ({ prompt, cwd, model, effort }) => format(await runClaude({ prompt, cwd, model, effort })),
-);
-
-server.registerTool(
-  "adversarial_review",
-  {
-    description:
-      "Get an adversarial code/plan review from Claude. Claude hunts for bugs, edge cases, security issues, race conditions and unstated assumptions. USE THIS before merging or committing. Read-only: Claude is instructed not to modify files.",
+    description: `${OPUS_WARNING} Delegate a complete autonomous task to Opus (claude -p). Full tool access (read, edit, shell) in cwd, max ${MAX_TURNS} agentic turns. Use for refactors, multi-file implementation, running/fixing tests. For read-only questions use ask instead. ${BLOCK_NESTED}`,
     inputSchema: {
-      content: z.string().optional().describe("Inline content to review (plan, diff, code snippet)."),
-      files: z.array(z.string()).optional().describe("File paths to review instead of inline content."),
-      focus: z.string().optional().describe("Optional focus area, e.g. 'security', 'concurrency'."),
+      prompt: z.string().describe("The complete task prompt for Opus."),
       ...routing,
     },
   },
-  async ({ content, files, focus, cwd, model, effort }) => {
-    const target = files?.length ? `the files: ${files.join(", ")}` : "the content below";
-    const focusLine = focus ? `\nFocus especially on: ${focus}.` : "";
-    const body = content ? `\n\n--- CONTENT ---\n${content}` : "";
-    const prompt = `Do a strict adversarial review of ${target}. Do NOT modify any files — this is read-only analysis. Hunt for correctness bugs, security flaws, edge cases, race conditions, and unstated assumptions. Be specific: cite file:line and give a concrete fix for each finding. Classify each as blocker / warning / suggestion.${focusLine}${body}`;
-    return format(await runClaude({ prompt, cwd, model, effort }));
-  },
+  async ({ prompt, cwd, effort }) =>
+    format(
+      await runClaude({ prompt, mode: "delegate", cwd, effort }),
+      `max_turns: ${MAX_TURNS}. ${BLOCK_NESTED}`,
+    ),
 );
 
 server.registerTool(
   "follow_up",
   {
-    description:
-      "Continue a previous Claude session by session_id (returned by every other tool). The prior context lives on Claude's side, so you don't resend it.",
+    description: `${OPUS_WARNING} Continue a previous Opus session by session_id (from ask, delegate, or fire). Prior context lives on Claude's side — do not resend it. ${BLOCK_NESTED}`,
     inputSchema: {
       session_id: z.string().describe("The session id returned by a previous claude-mcp-bridge call."),
-      question: z.string().describe("The follow-up question."),
+      question: z.string().describe("The follow-up question or instruction."),
+      mode: z
+        .enum(["ask", "delegate"])
+        .optional()
+        .describe("Session mode: 'ask' (read-only) or 'delegate' (can edit). Default: ask."),
       ...routing,
     },
   },
-  async ({ session_id, question, cwd, model, effort }) =>
-    format(await runClaude({ prompt: question, resume: session_id, cwd, model, effort })),
+  async ({ session_id, question, mode, cwd, effort }) =>
+    format(
+      await runClaude({
+        prompt: question,
+        mode: mode ?? "ask",
+        resume: session_id,
+        cwd,
+        effort,
+      }),
+      BLOCK_NESTED,
+    ),
+);
+
+server.registerTool(
+  "fire",
+  {
+    description: `${OPUS_WARNING} Fire-and-forget: dispatch an autonomous Opus task in the background (claude --bg). Returns session_id immediately — keep working and poll with check. Max ${MAX_TURNS} turns. Example: fire({ prompt: "Refactor the auth module to use JWT" }). ${BLOCK_NESTED}`,
+    inputSchema: {
+      prompt: z.string().describe("The complete task for Opus to run in the background."),
+      name: z.string().optional().describe("Optional session name for easier identification in claude agents."),
+      session_id: z
+        .string()
+        .optional()
+        .describe("Optional existing session id to continue (omit to start a new background session)."),
+      ...routing,
+    },
+  },
+  async ({ prompt, name, session_id, cwd, effort }) => {
+    const { sessionId, raw } = await fireClaude({
+      prompt,
+      name,
+      resume: session_id,
+      cwd,
+      effort,
+    });
+    return {
+      content: [
+        {
+          type: "text",
+          text: [
+            `session_id: ${sessionId}`,
+            `status: running (background)`,
+            `max_turns: ${MAX_TURNS}`,
+            "",
+            "Poll progress anytime:",
+            `  check({ session_id: "${sessionId}" })`,
+            "",
+            raw,
+            "",
+            BLOCK_NESTED,
+          ].join("\n"),
+        },
+      ],
+    };
+  },
+);
+
+server.registerTool(
+  "check",
+  {
+    description:
+      "Compact progress report for a background Opus session started with fire. Returns status and session metadata. Much cheaper than resuming the full session. Set detailed=true to include last message text.",
+    inputSchema: {
+      session_id: z.string().describe("The session id returned by fire."),
+      detailed: z.boolean().optional().describe("Include last message text (default: false)."),
+      ...routing,
+    },
+  },
+  async ({ session_id, detailed, cwd }) => {
+    const report = await checkSession(session_id, cwd, detailed ?? false);
+    return { content: [{ type: "text", text: report.summary }] };
+  },
 );
 
 const transport = new StdioServerTransport();
